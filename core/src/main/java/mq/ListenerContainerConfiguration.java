@@ -26,12 +26,12 @@ import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.ConstructorArgumentValues;
 import org.springframework.beans.factory.support.BeanDefinitionValidationException;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 import utils.ConfigUtil;
@@ -59,7 +59,16 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        this.applicationContext = (ConfigurableApplicationContext)applicationContext;
+//        GenericApplicationContext ctx = new GenericApplicationContext(applicationContext);
+//        //使用XmlBeanDefinitionReader
+//        XmlBeanDefinitionReader xmlReader = new XmlBeanDefinitionReader(ctx);
+//        //加载ClassPathResource
+//        xmlReader.loadBeanDefinitions(new ClassPathResource("rootContext.xml"));
+        //调用Refresh方法,只能调用一次
+//        ctx.refresh();
+
+
+        this.applicationContext = (ConfigurableApplicationContext) applicationContext;
     }
 
     @Override
@@ -91,8 +100,8 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
         validate(annotation);
 
         String containerBeanName = String.format("%s_%s", DefaultRocketMQListenerContainer.class.getName(),
-            counter.incrementAndGet());
-        GenericApplicationContext genericApplicationContext = (GenericApplicationContext)applicationContext;
+                counter.incrementAndGet());
+//        GenericApplicationContext  genericApplicationContext = (GenericApplicationContext)applicationContext;
 
 //        genericApplicationContext.registerBean(containerBeanName, DefaultRocketMQListenerContainer.class,
 //            () -> createRocketMQListenerContainer(containerBeanName, bean, annotation));
@@ -121,12 +130,18 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
 
 
         ClassDerivedBeanDefinition classDerivedBeanDefinition = new ClassDerivedBeanDefinition(DefaultRocketMQListenerContainer.class,null,pvs);
-        genericApplicationContext.registerBeanDefinition(containerBeanName,classDerivedBeanDefinition);
+//        genericApplicationContext.registerBeanDefinition(containerBeanName,classDerivedBeanDefinition);
+
+        // 获取bean工厂并转换为DefaultListableBeanFactory
+        DefaultListableBeanFactory defaultListableBeanFactory = (DefaultListableBeanFactory) applicationContext.getBeanFactory();
+        defaultListableBeanFactory.registerBeanDefinition(containerBeanName, classDerivedBeanDefinition);
+
+//        genericApplicationContext.refresh();
 
 //        genericApplicationContext.registerBeanDefinition(containerBeanName,bean);
 
-        DefaultRocketMQListenerContainer container = genericApplicationContext.getBean(containerBeanName,
-            DefaultRocketMQListenerContainer.class);
+        DefaultRocketMQListenerContainer container = applicationContext.getBean(containerBeanName,
+                DefaultRocketMQListenerContainer.class);
 
 
         if (!container.isRunning()) {
@@ -154,6 +169,14 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
             super(beanClass,cargs,pvs);
         }
 
+        public Constructor<?>[] getPreferredConstructors() {
+            Class<?> clazz = getBeanClass();
+            Constructor<?>[] publicCtors = clazz.getConstructors();
+            if (publicCtors.length > 0) {
+                return publicCtors;
+            }
+            return null;
+        }
 
         @Override
         public RootBeanDefinition cloneBeanDefinition() {
@@ -164,11 +187,11 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
 
 
     private DefaultRocketMQListenerContainer createRocketMQListenerContainer(String name, Object bean,
-        RocketMQMessageListener annotation) {
+                                                                             RocketMQMessageListener annotation) {
         DefaultRocketMQListenerContainer container = new DefaultRocketMQListenerContainer();
-        
+
         container.setRocketMQMessageListener(annotation);
-        
+
         String nameServer = annotation.nameServer();
         nameServer = StringUtils.isEmpty(nameServer) ? ROCKETMQ_NAMESERVER : nameServer;
         container.setNameServer(nameServer);
@@ -195,9 +218,9 @@ public class ListenerContainerConfiguration implements ApplicationContextAware, 
 
     private void validate(RocketMQMessageListener annotation) {
         if (annotation.consumeMode() == ConsumeMode.ORDERLY &&
-            annotation.messageModel() == MessageModel.BROADCASTING) {
+                annotation.messageModel() == MessageModel.BROADCASTING) {
             throw new BeanDefinitionValidationException(
-                "Bad annotation definition in @RocketMQMessageListener, messageModel BROADCASTING does not support ORDERLY message!");
+                    "Bad annotation definition in @RocketMQMessageListener, messageModel BROADCASTING does not support ORDERLY message!");
         }
     }
 }
