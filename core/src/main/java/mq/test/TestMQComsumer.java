@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 @RocketMQMessageListener(
         topic = "appstore_notify", 		//topic：和消费者发送的topic相同
-        consumerGroup = "tpay"         //group：不用和生产者group相同
+        consumerGroup = "appstore_notify"         //group：不用和生产者group相同
 )
 @Component
 public class TestMQComsumer implements RocketMQListener<MQMessageExt> {
